@@ -1,4 +1,5 @@
 import os
+import math
 import itertools
 from nltk.stem.porter import *
 import xml.etree.ElementTree as ET
@@ -30,7 +31,7 @@ class BowDocument:
                 self.add_term(term)
 
     def get_stop_words(self):
-        stop_words_file = open("./stop-words/stop-words.txt", "r")
+        stop_words_file = open("./documents/stop-words/stop-words.txt", "r")
         stop_words = stop_words_file.read().split(',')
         stop_words_file.close()
         return stop_words
@@ -39,10 +40,10 @@ class BowDocument:
     def stem_word_by_snowball(self, word):
         return self.stemmer.stem(word)
 
-    def storeTFIDF(self, term, value):
+    def store_tfidf(self, term, value):
         self.tfidf[term] = value
 
-    def getTFIDF(self):
+    def get_tfidf(self):
         return self.tfidf
 
     # Square the tfidf of each term in the document
