@@ -91,69 +91,34 @@ class SearchEngine:
         return doclist
 
     def get_document_terms(self):
-        try:
             path = self.path + self.dataset_path + "Training"
             count = 0
             for a in self.data_dict:
-                if count < 1:
+                if a == "119" or a == "120"or a == "121":
                     for target in self.data_dict[a]:
-                        TS = self.training_sets.get(a)
-                        target_file = path + a + "/" + target
-                        root = ET.parse(target_file).getroot()
-                        itemId = root.get('itemid')
-                        # Create new BowDocument Object
-                        BD = BowDocument(itemId)
+                        try:
+                            TS = self.training_sets.get(a)
+                            target_file = path + a + "/" + target
+                            root = ET.parse(target_file).getroot()
+                            itemId = root.get('itemid')
+                            # Create new BowDocument Object
+                            BD = BowDocument(itemId)
+                            for text in root.iter('text'):
+                                for p in text.iter('p'):
+                                    #tokenise text into array
+                                    terms = [word.strip(string.punctuation) for word in p.text.split(" ")]
+                                    for token in terms:
+                                        #add terms to BowDocument List
+                                        token = re.sub(r'[^a-zA-Z]', '', token)
+                                        if not re.search(r'[a-zA-Z]', token) == None:
+                                            BD.term_count(token)
 
-                        for text in root.iter('text'):
-                            for p in text.iter('p'):
-                                #tokenise text into array
-                                terms = [word.strip(string.punctuation) for word in p.text.split(" ")]
-                                for token in terms:
-                                    #add terms to BowDocument List
-                                    token = re.sub(r'[^a-zA-Z]', '', token)
-                                    if not re.search(r'[a-zA-Z]', token) == None:
-                                        BD.term_count(token)
-                        self.document_dict[itemId] = BD
-                        TS.add_document(itemId, BD)
-
+                            self.document_dict[itemId] = BD
+                            TS.add_document(itemId, BD)
+                        except PermissionError:
+                            pass
                     self.search_dict[a] = self.document_dict
-                    # self.search_dict[a] = self.document_dict
-                    count += 1
-                else:
-                    break
-        except PermissionError:
-            pass
 
-
-    def tfidf(self, number_of_tokens, number_of_documents, number_of_docs_with_term):
-        tf = number_of_tokens / number_of_documents
-        idf = math.log((number_of_documents / number_of_docs_with_term))
-        return tf * idf
-
-    ## Records the terms that are shared across several documents
-    ## in the same dictionary
-    def count_shared_terms(self, dictionary):
-        # New dictionary to be created then sorted
-        temp_dict = {}
-        # Dictionary items
-        dict_items = dictionary.items()
-        # Document Id
-        docId = next(iter(dictionary))
-        # Dictionary of all frequent words
-        freq_words = dictionary.get(docId).get_freq_word_map()
-        for key, value in dict_items:
-
-            if key != docId:
-                doc_tokens = dictionary.get(key).get_freq_word_map()
-                for token in doc_tokens:
-                    # If the token exists, count by 1
-                    if token in temp_dict:
-                        temp_dict[token] += 1
-                    else: # Add the token to the new dictionary
-                        if (len(token) > 2): # Only add tokens with more than 2 characters
-                            temp_dict[token] = 1
-        # Sort the dictionary by the number of tokens and return the sorted dictionary
-        return self.sort_dict(temp_dict)
 
     def sort_dict(self, dictionary):
         return sorted(dictionary.items(), key=lambda x:x[1], reverse=True)
@@ -164,52 +129,6 @@ class SearchEngine:
     def sort_bow_document(self, BD):
         return sorted(BD.get_tfidf().items(), key=lambda x:x[1], reverse=True)
 
-    def set_doc_len_avg(self, bd_dict):
-        self.doc_len_avg = self.total_doc_len / len(bd_dict)
-
-    def query_term_freq(self, terms):
-        for term in terms:
-            if term in self.query_freq:
-                self.query_freq[term] += 1
-            else:
-                if len(term) > 2:
-                    self.query_freq[term] = 1
-
-    def K(self, doc_len):
-        return self.k1 * ((1 - self.b) + (self.b * (doc_len / self.doc_len_avg)))
-
-    # Calculate the BM25
-    def BM25(self, query, docId, shared_terms):
-
-        self.query_term_freq(query)
-
-        document = self.document_dict.get(docId)
-
-        freq_map = document.get_freq_word_map()
-
-        sum_of_bm25 = 0.0
-
-        __N__ = len(self.document_dict)
-        __R__ = 0.0
-        __r__ = 0.0
-        __K__ = self.K(len(document.get_freq_word_map()))
-
-        for term in query:
-
-            __f__ = freq_map[term] if term in freq_map else 0.0
-            __qf__ = self.query_freq[term] if term in self.query_freq else 0.0
-            __n__ = shared_terms[term] if term in shared_terms else 0.0
-
-            part1 = ( __r__ + 0.5 ) / ( __R__ - __r__ + 0.5 )
-            part2 = ( __n__ - __r__ + 0.5 ) / ( __N__ - __n__ - __R__ + __r__ + 0.5 )
-            part3 = (((self.k1 + 1 ) * __f__ ) / ( __K__ + __f__ ))
-            part4 = (((self.k2 + 1) * __qf__ ) / ( self.k2 + __qf__ ))
-
-            alg = (part1 / part2) * part3 * part4
-
-            sum_of_bm25 += math.log(alg) if alg > 0 else 0.0
-
-        return sum_of_bm25
 
     def start(self):
         self.get_query_terms()
@@ -217,34 +136,14 @@ class SearchEngine:
         self.get_documents()
         self.get_document_terms()
         for i in self.training_sets:
-            b = self.training_sets[i].get_documents()
+            ts = self.training_sets[i]
+            docs = ts.get_documents()
             print ("********************* {} ***********************".format(i))
-            for x in b:
-                print (b.get(x).get_freq_word_map())
-                
-        # for i in self.search_dict:
-        #     key = "R" + str(i)
-        #     query = self.queries[key]
-        #
-        #     bow_document_dict = self.search_dict[i]
-        #     shared_terms = self.count_shared_terms(bow_document_dict)
-        #     self.total_doc_len = self.get_total_doc_len(bow_document_dict)
-        #     self.set_doc_len_avg(bow_document_dict)
-        #     tmp_bm25_dict = {}
-        #     print (i)
-        #     print ("\n\n")
-        #     for docId in bow_document_dict:
-        #         print (docId)
-        #         print ("\n")
-        #         # print ("{} \n".format(docId))
-        #         # tmp_bm25_dict[docId] = self.BM25(query, docId, shared_terms)
-        #     # print ("Test {} \n".format(i))
-        #     # self.bm25_dict[i] = tmp_bm25_dict
-        #
-        # for x in self.bm25_dict:
-        #     print ("{} \n {} \n".format(x, self.bm25_dict.get(x)))
-
-
+            if i == "119" or i == "120" or i == "121":
+                shared_terms = ts.count_shared_terms()
+                for doc in docs:
+                    print (ts.BM25(docs[doc], shared_terms))
+                print ("\n")
 
 SE = SearchEngine()
 

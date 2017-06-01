@@ -1,7 +1,9 @@
+import math
+
+
 class TrainingSet:
 
     def __init__(self, setId):
-        self.document_dictionary = {}
         self.setId = setId
         self.query = []
         self.query_freq = {}
@@ -12,6 +14,7 @@ class TrainingSet:
         self.k1 = 1.2
         self.k2 = 100
         self.b = 0.75
+        self.shared_terms = {}
 
     def get_set_id(self):
         return self.setId
@@ -25,20 +28,14 @@ class TrainingSet:
     # Adds the bow document object to the training set
     def add_document(self, docId, document):
         self.documents[docId] = document
-        self.set_doc_len_avg()
+        self.set_doc_len_avg(document)
 
     # Retrives the documents dictionary
     def get_documents(self):
         return self.documents
 
-    def set_total_len(self, len):
-        self.total_len = len
-
-    def get_total_len(self, doclen):
-        self.total_len = doclen
-
-    def set_doc_len_avg(self):
-        self.total_len_avg = self.total_len / len(document_dictionary)
+    def set_doc_len_avg(self, document):
+        self.total_len_avg = document.get_doc_len() / len(self.documents)
 
     def query_term_freq(self, terms):
         for term in terms:
@@ -52,7 +49,7 @@ class TrainingSet:
         return self.bm25
 
     def K(self, doc_len):
-        return self.k1 * ((1 - self.b) + (self.b * (doc_len / self.doc_len_avg)))
+        return self.k1 * ((1 - self.b) + (self.b * (doc_len / self.total_len_avg)))
 
     # Calculate the BM25
     def BM25(self, document, shared_terms):
@@ -63,12 +60,12 @@ class TrainingSet:
 
         sum_of_bm25 = 0.0
 
-        __N__ = len(self.document_dict)
+        __N__ = len(self.documents)
         __R__ = 0.0
         __r__ = 0.0
         __K__ = self.K(len(document.get_freq_word_map()))
 
-        for term in query:
+        for term in self.query:
 
             __f__ = freq_map[term] if term in freq_map else 0.0
             __qf__ = self.query_freq[term] if term in self.query_freq else 0.0
@@ -91,15 +88,15 @@ class TrainingSet:
         # New dictionary to be created then sorted
         temp_dict = {}
         # Dictionary items
-        dict_items = self.document_dictionary.items()
+        dict_items = self.documents.items()
         # Document Id
-        docId = next(iter(self.document_dictionary))
+        docId = next(iter(self.documents))
         # Dictionary of all frequent words
-        freq_words = self.document_dictionary.get(docId).get_freq_word_map()
+        freq_words = self.documents.get(docId).get_freq_word_map()
         for key, value in dict_items:
 
             if key != docId:
-                doc_tokens = self.document_dictionary.get(key).get_freq_word_map()
+                doc_tokens = self.documents.get(key).get_freq_word_map()
                 for token in doc_tokens:
                     # If the token exists, count by 1
                     if token in temp_dict:
