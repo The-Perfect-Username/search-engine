@@ -30,6 +30,9 @@ class BowDocument:
                 self.doclen += 1
                 self.add_term(term)
 
+    def get_doc_len(self):
+        return self.doclen
+
     def get_stop_words(self):
         stop_words_file = open("./documents/stop-words/stop-words.txt", "r")
         stop_words = stop_words_file.read().split(',')
@@ -50,17 +53,19 @@ class BowDocument:
     # Sum the squares per document
     # Then take the square root of the Sum
     # Divide the tfidf of the individual term with the square root
-    def nomralise_tfidf_values(self):
+    def normalise_tfidf_values(self):
         __sum__ = 0.0
         for i in self.tfidf.values():
             __sum__ += pow(i, 2)
         sqre = math.sqrt(__sum__)
         self.denom = sqre
 
-    def nomralise_tfidf(self):
-        self.nomralise_tfidf_values
+    def normalise_tfidf(self):
         for i in self.tfidf:
             self.tfidf[i] = self.tfidf[i] / self.denom
 
     def get_doc_length(self):
         return self.doclen
+
+    def get_docId(self):
+        return self.docId

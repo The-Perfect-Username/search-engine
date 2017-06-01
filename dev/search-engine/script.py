@@ -16,11 +16,51 @@ class SearchEngine:
         self.stop_word_path = '/stop-words/'
         self.topic_assignment = '/topic-assignment/'
         self.topic_statement = '/topic-statement/'
+        self.stemmer = PorterStemmer()
         self.queries = {}
-        self.data_dict = {}
-        self.document_dict = {}
+        self.query_freq = {}
+        self.data_dict = {} # key => Set ID; value => list of xml files
+        self.document_dict = {} # key => document ID; value => BD object
+        self.search_dict = {} # key => Set ID; value => {key => document ID; value => BD document}
+        self.bm25_dict = {}
         self.total_doc_len = 0
         self.doc_len_avg = 0
+        self.k1 = 1.2
+        self.k2 = 100
+        self.b = 0.75
+
+
+    # Query Documents Code
+
+    ## Gets the query terms from the documents in
+    ## the topic-statement folder and stores the
+    ## terms into a dictionary
+    def get_query_terms(self):
+        path = self.path + self.topic_statement
+        directory = os.listdir(path)
+
+        for _file_ in directory:
+            self.find_query_terms(path + _file_)
+
+        # for __id__ in self.queries:
+        #     print("{} {}".format(__id__, self.queries[__id__]))
+
+    ## Parses the document files for the document ID
+    ## and for the query terms
+    def find_query_terms(self, directory):
+        with open(directory, 'r') as f:
+            for line in f:
+                if "<num>" in line:
+                    ID = re.findall(r'\bR\w+', line)[0]
+                if "<title>" in line:
+                    tokens = re.findall(r'<title>(.*)', line)[0]
+                    tokens = [word.strip(string.punctuation) for word in tokens.split(" ") if word]
+                    tokens = [re.sub(r'[^a-zA-Z]', '', word) for word in tokens]
+                    tokens = [self.stemmer.stem(word) for word in tokens]
+                    self.queries[ID] = tokens
+        f.close()
+
+    # Documents Code
 
     def get_documents(self):
         path = self.path + self.dataset_path
@@ -39,20 +79,15 @@ class SearchEngine:
                 doclist.append(__d__)
         return doclist
 
-    def get_docs(self):
-        for __BD__ in self.document_dict:
-            print(self.document_dict[__BD__].get_doc_length())
-
     def get_document_terms(self):
         try:
             path = self.path + self.dataset_path + "Training"
             count = 0
             for a in self.data_dict:
-                if count < 3:
+                if count < 1:
                     for target in self.data_dict[a]:
 
                         target_file = path + a + "/" + target
-
                         root = ET.parse(target_file).getroot()
                         itemId = root.get('itemid')
                         # Create new BowDocument Object
@@ -68,66 +103,34 @@ class SearchEngine:
                                     if not re.search(r'[a-zA-Z]', token) == None:
                                         BD.term_count(token)
                         self.document_dict[itemId] = BD
-                        count+= 1
+                    self.search_dict[a] = self.document_dict
+                    count += 1
                 else:
                     break
         except PermissionError:
             pass
 
-    def get_query_terms(self):
-        path = self.path + self.topic_statement
-        directory = os.listdir(path)
-
-        for _file_ in directory:
-            self.find_query_terms(path + _file_)
-
-        for i in self.queries:
-            print("{} {} \n".format(i, self.queries[i]))
-
-    def find_query_terms(self, directory):
-        with open(directory, 'r') as f:
-            for line in f:
-                if "<num>" in line:
-                    ID = re.findall(r'\bR\w+', line)[0]
-                if "<title>" in line:
-                    tokens = re.findall(r'<title>(.*)', line)[0]
-                    tokens = [word.strip(string.punctuation) for word in tokens.split(" ") if word]
-                    self.queries[ID] = tokens
-        f.close()
 
     def tfidf(self, number_of_tokens, number_of_documents, number_of_docs_with_term):
         tf = number_of_tokens / number_of_documents
         idf = math.log((number_of_documents / number_of_docs_with_term))
         return tf * idf
 
-    def some_shit(self, docId, number_of_shared_terms):
-        BD = self.document_dict.get(docId)
-
-        self.total_doc_len += BD.get_doc_length()
-
-        freq_words = BD.get_freq_word_map()
-
-        i = 0
-        for word in freq_words:
-            tfidf = self.tfidf(freq_words[word], len(self.document_dict), number_of_shared_terms[i][1])
-            BD.store_tfidf(word, tfidf)
-            i += 1
-
-        BD.nomralise_tfidf_values()
-        BD.nomralise_tfidf()
-
-    def count_shared_terms(self):
+    ## Records the terms that are shared across several documents
+    ## in the same dictionary
+    def count_shared_terms(self, dictionary):
         # New dictionary to be created then sorted
         temp_dict = {}
         # Dictionary items
-        dict_items = self.document_dict.items()
+        dict_items = dictionary.items()
         # Document Id
-        docId = next(iter(self.document_dict))
+        docId = next(iter(dictionary))
         # Dictionary of all frequent words
-        freq_words = self.document_dict.get(docId).get_freq_word_map()
+        freq_words = dictionary.get(docId).get_freq_word_map()
         for key, value in dict_items:
+
             if key != docId:
-                doc_tokens = self.document_dict.get(key).get_freq_word_map()
+                doc_tokens = dictionary.get(key).get_freq_word_map()
                 for token in doc_tokens:
                     # If the token exists, count by 1
                     if token in temp_dict:
@@ -147,21 +150,76 @@ class SearchEngine:
     def sort_bow_document(self, BD):
         return sorted(BD.get_tfidf().items(), key=lambda x:x[1], reverse=True)
 
-    def doc_len_avg(self):
-        self.doc_len_avg = self.total_doc_len / len(self.document_dict)
+    def set_doc_len_avg(self, bd_dict):
+        self.doc_len_avg = self.total_doc_len / len(bd_dict)
+
+    def query_term_freq(self, terms):
+        for term in terms:
+            if term in self.query_freq:
+                self.query_freq[term] += 1
+            else:
+                if len(term) > 2:
+                    self.query_freq[term] = 1
+
+    def K(self, doc_len):
+        return self.k1 * ((1 - self.b) + (self.b * (doc_len / self.doc_len_avg)))
+
+    # Calculate the BM25
+    def BM25(self, query, docId, shared_terms):
+        self.query_term_freq(query)
+
+        document = self.document_dict.get(docId)
+
+        freq_map = document.get_freq_word_map()
+
+        sum_of_bm25 = 0.0
+
+        __N__ = len(self.document_dict)
+        __R__ = 0.0
+        __r__ = 0.0
+        __K__ = self.K(len(document.get_freq_word_map()))
+
+        for term in query:
+
+            __f__ = freq_map[term] if term in freq_map else 0.0
+            __qf__ = self.query_freq[term] if term in self.query_freq else 0.0
+            __n__ = shared_terms[term] if term in shared_terms else 0.0
+
+            part1 = ( __r__ + 0.5 ) / ( __R__ - __r__ + 0.5 )
+            part2 = ( __n__ - __r__ + 0.5 ) / ( __N__ - __n__ - __R__ + __r__ + 0.5 )
+            part3 = (((self.k1 + 1 ) * __f__ ) / ( __K__ + __f__ ))
+            part4 = (((self.k2 + 1) * __qf__ ) / ( self.k2 + __qf__ ))
+
+            alg = (part1 / part2) * part3 * part4
+
+            sum_of_bm25 += math.log(alg) if alg > 0 else 0.0
+
+        self.bm25_dict[docId] = sum_of_bm25
 
     def start(self):
+        self.get_query_terms()
         self.get_documents()
         self.get_document_terms()
-        shared_terms = self.count_shared_terms()
-        for key, value in self.document_dict.items():
-            self.some_shit(key, shared_terms)
-            BD = self.document_dict.get(key)
-            # sortedBD = self.sort_bow_document(BD)
-            #
-            # for tokens in sortedBD:
-            #     print ("{} {}".format(tokens[0], tokens[1]))
-        self.doc_len_avg()
+
+        for i in self.search_dict:
+            key = "R" + str(i)
+            query = self.queries[key]
+
+            bow_document_dict = self.search_dict[i]
+            shared_terms = self.count_shared_terms(bow_document_dict)
+            self.total_doc_len = self.get_total_doc_len(bow_document_dict)
+            self.set_doc_len_avg(bow_document_dict)
+            for docId in bow_document_dict:
+                self.BM25(query, docId, shared_terms)
+        print (self.bm25_dict)
+
+    ## Counts the number of
+    def get_total_doc_len(self, bd_dict):
+        dlen = 0
+        for d in bd_dict:
+            dlen += bd_dict[d].get_doc_len()
+        return dlen
+
 
 SE = SearchEngine()
 

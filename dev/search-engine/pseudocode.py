@@ -2,20 +2,33 @@
 
 Training Set Discovery
 
-DictionaryA = {}
-U = topic assignment directory
-for D in U:
-    DictionaryB = {}
-    Tokens = Tokenised D line by line and word by word
-    for token in Tokens:
-        DocumentId = token[1]
-        Relevant = token[2]
-        DictionaryB[DocumentId] = Relevant
-    DictionaryA[Document Number] = DictionaryB
+Q = Topic Statement.txt
+S = Datasets [101...150]
+D = XML documents in the folders in S
 
+Parse Q to find the training set IDs and obtain the query string
+Tokenise and stem query terms
+Store the query terms in a dictionary where the key = Training Set ID
 
+Access each S[i] folder to parse through each D in S[i]
+Tokenise and stem each keyword
+Store the keywords into a dictionary where the key = the Document ID of D
 
+Go through the dictionary and create a new dictionary:
+    Dictionary = {
+                    Set ID: {
+                        Document ID: {
+                            [list of bow documents]
+                        },
+                        ...
+                    },
+                    ...
+                }
 
+Calculate TFIDF while doing so
+Calculate bm25
+
+Sort to find |D+/D-| in U
 
 
 Part 2
