@@ -6,6 +6,8 @@ import itertools
 from nltk.stem.porter import *
 import xml.etree.ElementTree as ET
 from bowdocument import BowDocument
+from training import TrainingSet
+
 
 
 class SearchEngine:
@@ -23,6 +25,7 @@ class SearchEngine:
         self.document_dict = {} # key => document ID; value => BD object
         self.search_dict = {} # key => Set ID; value => {key => document ID; value => BD document}
         self.bm25_dict = {}
+        self.training_sets = {}
         self.total_doc_len = 0
         self.doc_len_avg = 0
         self.k1 = 1.2
@@ -42,8 +45,16 @@ class SearchEngine:
         for _file_ in directory:
             self.find_query_terms(path + _file_)
 
-        # for __id__ in self.queries:
-        #     print("{} {}".format(__id__, self.queries[__id__]))
+    def create_training_sets(self):
+        for query in self.queries:
+            setId = query.replace('R', '')
+            TS = TrainingSet(setId)
+            TS.set_query(self.queries[query])
+            self.add_training_sets(setId, TS)
+
+    # Just for testing
+    def add_training_sets(self, setId, tsobj):
+        self.training_sets[setId] = tsobj
 
     ## Parses the document files for the document ID
     ## and for the query terms
@@ -86,7 +97,7 @@ class SearchEngine:
             for a in self.data_dict:
                 if count < 1:
                     for target in self.data_dict[a]:
-
+                        TS = self.training_sets.get(a)
                         target_file = path + a + "/" + target
                         root = ET.parse(target_file).getroot()
                         itemId = root.get('itemid')
@@ -103,7 +114,10 @@ class SearchEngine:
                                     if not re.search(r'[a-zA-Z]', token) == None:
                                         BD.term_count(token)
                         self.document_dict[itemId] = BD
+                        TS.add_document(itemId, BD)
+
                     self.search_dict[a] = self.document_dict
+                    # self.search_dict[a] = self.document_dict
                     count += 1
                 else:
                     break
@@ -166,6 +180,7 @@ class SearchEngine:
 
     # Calculate the BM25
     def BM25(self, query, docId, shared_terms):
+
         self.query_term_freq(query)
 
         document = self.document_dict.get(docId)
@@ -194,31 +209,41 @@ class SearchEngine:
 
             sum_of_bm25 += math.log(alg) if alg > 0 else 0.0
 
-        self.bm25_dict[docId] = sum_of_bm25
+        return sum_of_bm25
 
     def start(self):
         self.get_query_terms()
+        self.create_training_sets()
         self.get_documents()
         self.get_document_terms()
+        for i in self.training_sets:
+            b = self.training_sets[i].get_documents()
+            print ("********************* {} ***********************".format(i))
+            for x in b:
+                print (b.get(x).get_freq_word_map())
+                
+        # for i in self.search_dict:
+        #     key = "R" + str(i)
+        #     query = self.queries[key]
+        #
+        #     bow_document_dict = self.search_dict[i]
+        #     shared_terms = self.count_shared_terms(bow_document_dict)
+        #     self.total_doc_len = self.get_total_doc_len(bow_document_dict)
+        #     self.set_doc_len_avg(bow_document_dict)
+        #     tmp_bm25_dict = {}
+        #     print (i)
+        #     print ("\n\n")
+        #     for docId in bow_document_dict:
+        #         print (docId)
+        #         print ("\n")
+        #         # print ("{} \n".format(docId))
+        #         # tmp_bm25_dict[docId] = self.BM25(query, docId, shared_terms)
+        #     # print ("Test {} \n".format(i))
+        #     # self.bm25_dict[i] = tmp_bm25_dict
+        #
+        # for x in self.bm25_dict:
+        #     print ("{} \n {} \n".format(x, self.bm25_dict.get(x)))
 
-        for i in self.search_dict:
-            key = "R" + str(i)
-            query = self.queries[key]
-
-            bow_document_dict = self.search_dict[i]
-            shared_terms = self.count_shared_terms(bow_document_dict)
-            self.total_doc_len = self.get_total_doc_len(bow_document_dict)
-            self.set_doc_len_avg(bow_document_dict)
-            for docId in bow_document_dict:
-                self.BM25(query, docId, shared_terms)
-        print (self.bm25_dict)
-
-    ## Counts the number of
-    def get_total_doc_len(self, bd_dict):
-        dlen = 0
-        for d in bd_dict:
-            dlen += bd_dict[d].get_doc_len()
-        return dlen
 
 
 SE = SearchEngine()

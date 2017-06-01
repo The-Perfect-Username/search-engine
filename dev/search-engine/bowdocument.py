@@ -13,6 +13,7 @@ class BowDocument:
         self.doclen = 0
         self.tfidf = {}
         self.denom = 0
+        self.bm25 = 0
 
     def get_freq_word_map(self):
         return self.term_freq_map
@@ -69,3 +70,9 @@ class BowDocument:
 
     def get_docId(self):
         return self.docId
+
+    def set_bm25(self, bm25):
+        self.bm25 = bm25
+
+    def get_bm25(self,):
+        return self.bm25
