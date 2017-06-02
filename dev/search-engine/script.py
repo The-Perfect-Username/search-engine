@@ -7,6 +7,8 @@ from nltk.stem.porter import *
 import xml.etree.ElementTree as ET
 from bowdocument import BowDocument
 from training import TrainingSet
+from infofilter import InformationFilter
+import time
 
 
 
@@ -20,20 +22,16 @@ class SearchEngine:
         self.topic_statement = '/topic-statement/'
         self.stemmer = PorterStemmer()
         self.queries = {}
-        self.query_freq = {}
         self.data_dict = {} # key => Set ID; value => list of xml files
         self.document_dict = {} # key => document ID; value => BD object
         self.search_dict = {} # key => Set ID; value => {key => document ID; value => BD document}
-        self.bm25_dict = {}
         self.training_sets = {}
-        self.total_doc_len = 0
-        self.doc_len_avg = 0
-        self.k1 = 1.2
-        self.k2 = 100
-        self.b = 0.75
+        self.information_filters = {}
 
 
     # Query Documents Code
+    def get_stop_words(self):
+        return open(self.path + self.stop_word_path + "stop-words.txt").read().split(',')
 
     ## Gets the query terms from the documents in
     ## the topic-statement folder and stores the
@@ -49,12 +47,17 @@ class SearchEngine:
         for query in self.queries:
             setId = query.replace('R', '')
             TS = TrainingSet(setId)
+            IF = InformationFilter(setId)
             TS.set_query(self.queries[query])
             self.add_training_sets(setId, TS)
+            self.add_info_filters(setId, IF)
 
     # Just for testing
     def add_training_sets(self, setId, tsobj):
         self.training_sets[setId] = tsobj
+
+    def add_info_filters(self, setId, ifobj):
+        self.information_filters[setId] = ifobj
 
     ## Parses the document files for the document ID
     ## and for the query terms
@@ -93,31 +96,29 @@ class SearchEngine:
     def get_document_terms(self):
             path = self.path + self.dataset_path + "Training"
             count = 0
+            sw = self.get_stop_words()
             for a in self.data_dict:
-                if a == "119" or a == "120"or a == "121":
-                    for target in self.data_dict[a]:
-                        try:
-                            TS = self.training_sets.get(a)
-                            target_file = path + a + "/" + target
-                            root = ET.parse(target_file).getroot()
-                            itemId = root.get('itemid')
-                            # Create new BowDocument Object
-                            BD = BowDocument(itemId)
-                            for text in root.iter('text'):
-                                for p in text.iter('p'):
-                                    #tokenise text into array
-                                    terms = [word.strip(string.punctuation) for word in p.text.split(" ")]
-                                    for token in terms:
-                                        #add terms to BowDocument List
-                                        token = re.sub(r'[^a-zA-Z]', '', token)
-                                        if not re.search(r'[a-zA-Z]', token) == None:
-                                            BD.term_count(token)
+                for target in self.data_dict[a]:
+                    try:
+                        TS = self.training_sets.get(a)
+                        target_file = path + a + "/" + target
 
-                            self.document_dict[itemId] = BD
-                            TS.add_document(itemId, BD)
-                        except PermissionError:
-                            pass
-                    self.search_dict[a] = self.document_dict
+                        itemId = target.replace(".xml", '')
+                        # Create new BowDocument Object
+                        BD = BowDocument(itemId)
+                        for line in ET.parse(target_file).getroot().iter('p'):
+                            #tokenise text into array
+                            terms = line.text.split(" ")
+                            for term in terms:
+                                term = re.sub(r'[^a-zA-Z]', '', term)
+                                if re.search(r'[a-z]+', term) and term.lower() not in sw and not term == '\'s' and len(term) > 2:
+                                     BD.term_count(term)
+
+                        self.document_dict[itemId] = BD
+                        TS.add_document(itemId, BD)
+                    except PermissionError:
+                        pass
+                self.search_dict[a] = self.document_dict
 
 
     def sort_dict(self, dictionary):
@@ -126,24 +127,47 @@ class SearchEngine:
     def to_dict(self, array):
         return dict(array)
 
-    def sort_bow_document(self, BD):
-        return sorted(BD.get_tfidf().items(), key=lambda x:x[1], reverse=True)
+    def create_file(self, name, setId, data, directory = "./documents/training-set/"):
+        f = open(directory + name, "w")
+        IF = self.information_filters.get(setId)
+        TS = self.training_sets.get(setId)
+        for i in data[:5]:
+            text = "Document: {}  BM25 Score: {} \n".format(i[0], i[1])
+            f.write(text)
+            word_map = TS.get_documents().get(i[0]).get_freq_word_map()
+            IF.set_relevant(i[0], word_map)
 
+        for i in data[-5:]:
+            text = "Document: {}  BM25 Score: {} \n".format(i[0], i[1])
+            f.write(text)
+            word_map = TS.get_documents().get(i[0]).get_freq_word_map()
+            IF.set_nonrelevant(i[0], word_map)
+        f.close()
 
     def start(self):
+        start = time.time()
         self.get_query_terms()
         self.create_training_sets()
         self.get_documents()
         self.get_document_terms()
+        end = time.time()
+        print (end - start)
+
         for i in self.training_sets:
             ts = self.training_sets[i]
             docs = ts.get_documents()
             print ("********************* {} ***********************".format(i))
-            if i == "119" or i == "120" or i == "121":
-                shared_terms = ts.count_shared_terms()
-                for doc in docs:
-                    print (ts.BM25(docs[doc], shared_terms))
-                print ("\n")
+            shared_terms = ts.count_shared_terms()
+            tmp_dict = {}
+            for doc in docs:
+                tmp_dict[doc] = ts.BM25(docs[doc], shared_terms)
+            b = self.sort_dict(tmp_dict)
+            filename = "BaselineResult{}.dat".format(int(i) - 100)
+            self.create_file(filename, i, b)
+            IF = self.information_filters.get(i)
+            IF.start()
+
+
 
 SE = SearchEngine()
 

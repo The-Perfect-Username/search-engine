@@ -94,7 +94,6 @@ class TrainingSet:
         # Dictionary of all frequent words
         freq_words = self.documents.get(docId).get_freq_word_map()
         for key, value in dict_items:
-
             if key != docId:
                 doc_tokens = self.documents.get(key).get_freq_word_map()
                 for token in doc_tokens:

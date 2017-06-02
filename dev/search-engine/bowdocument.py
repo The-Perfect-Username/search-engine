@@ -11,7 +11,6 @@ class BowDocument:
         self.docId = docId
         self.term_freq_map = {}
         self.doclen = 0
-        self.tfidf = {}
         self.denom = 0
         self.bm25 = 0
 
@@ -43,27 +42,6 @@ class BowDocument:
     # Stem the terms
     def stem_word_by_snowball(self, word):
         return self.stemmer.stem(word)
-
-    def store_tfidf(self, term, value):
-        self.tfidf[term] = value
-
-    def get_tfidf(self):
-        return self.tfidf
-
-    # Square the tfidf of each term in the document
-    # Sum the squares per document
-    # Then take the square root of the Sum
-    # Divide the tfidf of the individual term with the square root
-    def normalise_tfidf_values(self):
-        __sum__ = 0.0
-        for i in self.tfidf.values():
-            __sum__ += pow(i, 2)
-        sqre = math.sqrt(__sum__)
-        self.denom = sqre
-
-    def normalise_tfidf(self):
-        for i in self.tfidf:
-            self.tfidf[i] = self.tfidf[i] / self.denom
 
     def get_doc_length(self):
         return self.doclen
