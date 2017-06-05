@@ -76,9 +76,9 @@ class TrainingSet:
             part3 = (((self.k1 + 1 ) * __f__ ) / ( __K__ + __f__ ))
             part4 = (((self.k2 + 1) * __qf__ ) / ( self.k2 + __qf__ ))
 
-            alg = (part1 / part2) * part3 * part4
+            alg = math.log(part1 / part2) * part3 * part4
 
-            sum_of_bm25 += math.log(alg) if alg > 0 else 0.0
+            sum_of_bm25 += alg
 
         return sum_of_bm25
 

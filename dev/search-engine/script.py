@@ -8,6 +8,7 @@ import xml.etree.ElementTree as ET
 from bowdocument import BowDocument
 from training import TrainingSet
 from infofilter import InformationFilter
+from Evaluation import Evaluator
 import time
 
 
@@ -101,6 +102,8 @@ class SearchEngine:
                 for target in self.data_dict[a]:
                     try:
                         TS = self.training_sets.get(a)
+                        IF = self.information_filters.get(a)
+
                         target_file = path + a + "/" + target
 
                         itemId = target.replace(".xml", '')
@@ -115,7 +118,10 @@ class SearchEngine:
                                      BD.term_count(term)
 
                         self.document_dict[itemId] = BD
+
                         TS.add_document(itemId, BD)
+                        IF.add_document(itemId, BD)
+
                     except PermissionError:
                         pass
                 self.search_dict[a] = self.document_dict
@@ -132,17 +138,19 @@ class SearchEngine:
         IF = self.information_filters.get(setId)
         TS = self.training_sets.get(setId)
         for i in data[:5]:
-            text = "Document: {}  BM25 Score: {} \n".format(i[0], i[1])
+            text = "{} {} 1 \n".format(i[0], i[1])
             f.write(text)
             word_map = TS.get_documents().get(i[0]).get_freq_word_map()
             IF.set_relevant(i[0], word_map)
 
         for i in data[-5:]:
-            text = "Document: {}  BM25 Score: {} \n".format(i[0], i[1])
+            text = "{} {} 0 \n".format(i[0], i[1])
             f.write(text)
             word_map = TS.get_documents().get(i[0]).get_freq_word_map()
             IF.set_nonrelevant(i[0], word_map)
         f.close()
+
+
 
     def start(self):
         start = time.time()
@@ -166,6 +174,8 @@ class SearchEngine:
             self.create_file(filename, i, b)
             IF = self.information_filters.get(i)
             IF.start()
+            E = Evaluator(i)
+            E.startProcess()
 
 
 

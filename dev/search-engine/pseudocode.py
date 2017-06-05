@@ -31,21 +31,18 @@ Calculate bm25
 Sort to find |D+/D-| in U
 
 
-Part 2
+Task 2
 
-DictionaryA = {}
+Parse through the topic assignment poder for the documents in D.
 
-For each D in U:
-    DictionaryB = {}
+Assign all Relevant Documents in the Relevant Document dictionary with their terms,
+Do the same thing with nonrelevant
 
-    Open file D
-    Tokenise D
-    For each token in Tokens:
-        Remove stopwords
-        Stem word
-        Store in Array
+Loop through each document in the documents dictionary and use the bm25 weighting algorithm to find the bm25
+weight score for each term in the document.
 
-    Add Array to Dictionary with D Id as the key
+Then find the ranking of each document then create new files to show results
+
 
 
 
