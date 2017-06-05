@@ -10,7 +10,6 @@ class TrainingSet:
         self.documents = {}
         self.total_len = 0
         self.total_len_avg = 0
-        self.bm25 = {}
         self.k1 = 1.2
         self.k2 = 100
         self.b = 0.75
@@ -45,8 +44,6 @@ class TrainingSet:
                 if len(term) > 2:
                     self.query_freq[term] = 1
 
-    def get_bm25(self):
-        return self.bm25
 
     def K(self, doc_len):
         return self.k1 * ((1 - self.b) + (self.b * (doc_len / self.total_len_avg)))

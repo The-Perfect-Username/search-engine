@@ -44,10 +44,4 @@ weight score for each term in the document.
 Then find the ranking of each document then create new files to show results
 
 
-
-
-
-
-
-
 '''

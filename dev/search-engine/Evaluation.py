@@ -14,8 +14,9 @@ class Evaluator:
         self.number_of_retrieved_documents = 0
         self.number_of_retrieved_relevant_documents = 0
 
-        self.task_one_documents = {}
-        self.task_two_documents = {}
+        self.task_one_docs = {}
+        self.task_two_docs = {}
+
         self.training_docs = {}
 
     def reset(self):
@@ -23,8 +24,10 @@ class Evaluator:
         self.number_of_retrieved_documents = 0
         self.number_of_retrieved_relevant_documents = 0
 
+
     def startProcess(self):
         self.read_training()
+
         self.start_task_one()
         __recall = self.recall()
         __precision = self.precision()
@@ -40,6 +43,7 @@ class Evaluator:
         text += "F-Measure {} \n\n\n".format(__f_one)
 
         self.reset()
+
         self.start_task_two()
         __recall = self.recall()
         __precision = self.precision()
@@ -62,37 +66,56 @@ class Evaluator:
             self.training_docs[document[1]] = int(document[2])
             # self.number_of_relevant_documents += int(document[2])
 
+    # Process for evaluation the first model
     def start_task_one(self):
+        list_of_documents = self.read_documents(self.TaskOnePath)
+        arr = dict(list_of_documents)
 
-        arr = self.read_documents(self.TaskOnePath)
+        self.number_of_retrieved_documents = len(arr)
+        relevant = dict(list_of_documents[:5])
 
+        self.task_one_docs = arr
         for document in arr:
-            self.number_of_retrieved_documents += 1
-            self.number_of_relevant_documents += int(document[2])
-            if int(document[2]) == int(self.training_docs[document[0]]):
+            self.number_of_relevant_documents += int(self.training_docs[document])
+
+            if (document in relevant) and (int(self.training_docs[document]) == 1):
                 self.number_of_retrieved_relevant_documents += 1
 
+    # Process for evaulating the second model
     def start_task_two(self):
-        arr = self.read_documents(self.TaskTwoPath)
+        list_of_documents = self.read_documents(self.TaskTwoPath)
+        arr = dict(list_of_documents)
+        self.number_of_retrieved_documents = len(arr)
+        self.task_two_docs = arr
+
+        relevant = dict(list_of_documents[:5])
 
         for document in arr:
-            self.number_of_retrieved_documents += 1
-            self.number_of_relevant_documents += int(document[2])
-            if int(document[2]) == int(self.training_docs[document[0]]):
+            self.number_of_relevant_documents += int(self.training_docs[document])
+            if (document in relevant) and (int(self.training_docs[document]) == 1):
                 self.number_of_retrieved_relevant_documents += 1
 
     def read_documents(self, path):
         temp = []
         with open(path) as f:
             for line in f:
-                temp.append(line.rstrip('\n').split(" "))
+                temp.append(list(filter(None, line.rstrip('\n').split(" "))))
         return temp
 
     def recall(self):
-        return (self.number_of_retrieved_relevant_documents) / self.number_of_relevant_documents
+        try:
+            return (self.number_of_retrieved_relevant_documents) / self.number_of_relevant_documents
+        except ZeroDivisionError:
+            return  0.0
 
     def precision(self):
-        return (self.number_of_retrieved_relevant_documents) / self.number_of_retrieved_documents
+        try:
+            return (self.number_of_retrieved_relevant_documents) / self.number_of_retrieved_documents
+        except ZeroDivisionError:
+            return  0.0
 
     def f_one(self, recall, precision):
-        return (2 * recall * precision) / (recall + precision)
+        try:
+            return (2 * recall * precision) / (recall + precision)
+        except ZeroDivisionError:
+            return  0.0

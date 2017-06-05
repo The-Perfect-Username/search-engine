@@ -7,6 +7,7 @@ from nltk.stem.porter import *
 import xml.etree.ElementTree as ET
 
 class InformationFilter:
+
     def __init__(self, setId):
         self.setId = setId
         self.documents = {}
@@ -14,49 +15,27 @@ class InformationFilter:
         self.total_len_avg = 0
         self.shared_terms = {}
         self.term_weighting = {}
-        self.doc_set = {}
         self.bm25 = {}
         self.bm25_scores = {}
 
         self.relevant = {}
-        self.nonrelevant = {}
-        self.noise = {}
         self.docs = {}
 
-    def read_files(self):
-        path = "./documents/topic-assignment/Training{}.txt".format(self.setId)
-        with open(path, 'r') as f:
-            for line in f:
-                tokens = line.split(" ")
-                self.docs[tokens[1]] = tokens[2].replace("\n", '')
-        f.close()
-
-    def set_noise(self):
-        for document in self.documents:
-            if document not in self.relevant and document not in self.nonrelevant:
-                self.noise[document] = self.documents[document].get_freq_word_map()
-
+    # Set relevant document and their freq word map
     def set_relevant(self, docId, data):
         self.relevant[docId] = self.documents[docId].get_freq_word_map()
 
-
-    def set_nonrelevant(self, docId, data):
-        self.nonrelevant[docId] = self.documents[docId].get_freq_word_map()
-
+    # Add documents
     def add_document(self, docId, document):
         self.documents[docId] = document
 
+    # Start Information Filtering process
     def start(self):
-        self.read_files()
-        self.get_document_keywords()
         self.bm25_term_weighting()
         self.ranking()
         self.create_results()
 
-    # Passes the sets document dictionary
-    def get_document_keywords(self):
-        self.doc_set = {**self.relevant, **self.nonrelevant}
-
+    # Tokenise keywords into an array
     def read_lines_to_array(self, directory):
         tmp = []
         with open(directory, 'r') as f:
@@ -64,11 +43,11 @@ class InformationFilter:
                 tmp.append(line)
         return tmp
 
+    # BM25 term weighting algorithm
     def bm25_term_weighting(self):
         T = set()
-        N = len(self.doc_set)
+        N = len(self.documents)
         R = len(self.relevant)
-        print ("N: {} R: {}".format(N, R))
         tmp = {}
 
         for doc in self.relevant:
@@ -79,8 +58,8 @@ class InformationFilter:
             tmp[term] = {"n": 0, "r": 0}
 
         for term in T:
-            for doc in self.doc_set:
-                if term in self.doc_set[doc]:
+            for doc in self.documents:
+                if term in self.documents[doc].get_freq_word_map():
                     tmp[term]['n'] += 1
 
         for term in T:
@@ -93,16 +72,19 @@ class InformationFilter:
             r = tmp[term]['r']
             self.bm25[term] = self.w5(n, r, N, R)
 
+
+    # Term weighting
     def w5(self, n, r, N, R):
         one = (r + 0.5) / (R - r + 0.5)
         two = (n - r + 0.5) / ((N - n) - (R - r) + 0.5)
         return math.log(one / two)
 
+    # Ranking algorithm
     def ranking(self):
         tmp_bm25 = {}
-        for docId in self.doc_set:
+        for docId in self.documents:
             tmp = {}
-            for term in self.doc_set[docId]:
+            for term in self.documents[docId].get_freq_word_map():
                 if term in self.bm25:
                     tmp[term] = self.bm25[term]
                 else:
@@ -113,13 +95,21 @@ class InformationFilter:
         for docId in tmp_bm25:
             self.bm25_scores[docId] = self.count_score(tmp_bm25[docId])
 
+        self.bm25_scores = dict(self.sort_dict(self.bm25_scores))
+
+    # Sort dictionary in descending order
+    def sort_dict(self, dictionary):
+        return sorted(dictionary.items(), key=lambda x:x[1], reverse=True)
 
     def count_score(self, dictionary):
         score = 0
         for i in dictionary:
             score += dictionary[i]
         return score
-
+        
+    # Get the top 5 relevant documents
+    def get_top_five(self):
+        return dict(list(self.bm25_scores.items())[:5])
 
     def create_results(self):
         directory = "./documents/results/"

@@ -94,89 +94,107 @@ class SearchEngine:
                 doclist.append(__d__)
         return doclist
 
-    def get_document_terms(self):
+    def process(self):
+        # Loop through each set of documents
+        for documents in self.data_dict:
+            TS = self.training_sets[documents]
+            IF = self.information_filters[documents]
+
+            for document in self.data_dict[documents]:
+                self.process_document(documents, document)
+
+            shared_terms = TS.count_shared_terms()
+
+            docs = TS.get_documents()
+
+            tmp_dict = {}
+            for doc in docs:
+                tmp_dict[doc] = TS.BM25(docs[doc], shared_terms)
+
+
+            _sorted_ = self.to_dict(self.sort_dict(tmp_dict))
+
+            filename = "BaselineResult{}.dat".format(int(documents) - 100)
+            self.create_file(filename, documents, _sorted_)
+
+            IF.start()
+
+    def process_document(self, setId, filename):
+        try:
             path = self.path + self.dataset_path + "Training"
-            count = 0
             sw = self.get_stop_words()
-            for a in self.data_dict:
-                for target in self.data_dict[a]:
-                    try:
-                        TS = self.training_sets.get(a)
-                        IF = self.information_filters.get(a)
+            TS = self.training_sets.get(setId)
+            IF = self.information_filters.get(setId)
 
-                        target_file = path + a + "/" + target
+            target_file = path + setId + "/" + filename
 
-                        itemId = target.replace(".xml", '')
-                        # Create new BowDocument Object
-                        BD = BowDocument(itemId)
-                        for line in ET.parse(target_file).getroot().iter('p'):
-                            #tokenise text into array
-                            terms = line.text.split(" ")
-                            for term in terms:
-                                term = re.sub(r'[^a-zA-Z]', '', term)
-                                if re.search(r'[a-z]+', term) and term.lower() not in sw and not term == '\'s' and len(term) > 2:
-                                     BD.term_count(term)
+            itemId = filename.replace(".xml", '')
+            # Create new BowDocument Object
+            BD = BowDocument(itemId)
+            for line in ET.parse(target_file).getroot().iter('p'):
+                #tokenise text into array
+                terms = line.text.split(" ")
+                # Remove stopwords and puntuation
+                for term in terms:
+                    term = re.sub(r'[^a-zA-Z]', '', term)
+                    if re.search(r'[a-z]+', term) and term.lower() not in sw and not term == '\'s' and len(term) > 2:
+                         BD.term_count(term)
 
-                        self.document_dict[itemId] = BD
+            self.document_dict[itemId] = BD
 
-                        TS.add_document(itemId, BD)
-                        IF.add_document(itemId, BD)
+            TS.add_document(itemId, BD)
+            IF.add_document(itemId, BD)
 
-                    except PermissionError:
-                        pass
-                self.search_dict[a] = self.document_dict
+        except PermissionError:
+            pass
 
-
+    # Sort dictionary
     def sort_dict(self, dictionary):
         return sorted(dictionary.items(), key=lambda x:x[1], reverse=True)
 
+    # Covnert array to dictionary
     def to_dict(self, array):
         return dict(array)
 
-    def create_file(self, name, setId, data, directory = "./documents/training-set/"):
+    # Create result files for the training set
+    def create_file(self, name, setId, data):
+        directory = "./documents/training-set/"
         f = open(directory + name, "w")
+
+        # Call training set and information filter objects
         IF = self.information_filters.get(setId)
         TS = self.training_sets.get(setId)
-        for i in data[:5]:
-            text = "{} {} 1 \n".format(i[0], i[1])
-            f.write(text)
-            word_map = TS.get_documents().get(i[0]).get_freq_word_map()
-            IF.set_relevant(i[0], word_map)
 
-        for i in data[-5:]:
-            text = "{} {} 0 \n".format(i[0], i[1])
+        data = list(data.items())
+
+        # Top 5 Relevant
+        for i in data[:5]:
+            text = "{} {}\n".format(i[0], i[1])
             f.write(text)
-            word_map = TS.get_documents().get(i[0]).get_freq_word_map()
-            IF.set_nonrelevant(i[0], word_map)
+            document = TS.get_documents().get(i[0])
+            IF.set_relevant(i[0], document)
+
+        # Noise
+        for i in data[5: (len(data) - 5)]:
+            text = "{} {}\n".format(i[0], i[1])
+            f.write(text)
+
+        # Bottom 5 nonrelevant
+        for i in data[-5:]:
+            text = "{} {}\n".format(i[0], i[1])
+            f.write(text)
+            document = TS.get_documents().get(i[0])
         f.close()
 
-
-
     def start(self):
-        start = time.time()
         self.get_query_terms()
         self.create_training_sets()
         self.get_documents()
-        self.get_document_terms()
-        end = time.time()
-        print (end - start)
+        self.process()
 
-        for i in self.training_sets:
-            ts = self.training_sets[i]
-            docs = ts.get_documents()
-            print ("********************* {} ***********************".format(i))
-            shared_terms = ts.count_shared_terms()
-            tmp_dict = {}
-            for doc in docs:
-                tmp_dict[doc] = ts.BM25(docs[doc], shared_terms)
-            b = self.sort_dict(tmp_dict)
-            filename = "BaselineResult{}.dat".format(int(i) - 100)
-            self.create_file(filename, i, b)
-            IF = self.information_filters.get(i)
-            IF.start()
-            E = Evaluator(i)
+        for documents in self.data_dict:
+            E = Evaluator(documents)
             E.startProcess()
-
 
 
 SE = SearchEngine()
